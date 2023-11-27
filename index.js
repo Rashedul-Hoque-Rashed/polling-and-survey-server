@@ -33,19 +33,7 @@ const client = new MongoClient(uri, {
 
 
 
-const verifyToken = (req, res, next) => {
-  const token = req?.cookies?.token;
-  if (!token) {
-      return res.status(401).send({ message: 'unauthorized access' })
-  }
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-      if (err) {
-          return res.status(401).send({ message: 'unauthorized access' })
-      }
-      req.decoded = decoded;
-      next();
-  })
-}
+
 
 
 
@@ -58,6 +46,32 @@ async function run() {
     const reviewCollection = client.db("surveyDB").collection('reviews');
     const paymentCollections = client.db('surveyDB').collection('payments');
     const userCollections = client.db('surveyDB').collection('users');
+
+
+    const verifyToken = (req, res, next) => {
+      const token = req?.cookies?.token;
+      if (!token) {
+          return res.status(401).send({ message: 'unauthorized access' })
+      }
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+          if (err) {
+              return res.status(401).send({ message: 'unauthorized access' })
+          }
+          req.decoded = decoded;
+          next();
+      })
+    }
+    
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await userCollections.findOne(query);
+      const isAdmin = user?.role === 'admin' ? true : false;
+      next();
+    }
+
+
+
 
 
     app.post('/jwt', async (req, res) => {
@@ -78,6 +92,24 @@ async function run() {
       res.clearCookie('token', { maxAge: 0 }).send({ success: true })
   })
 
+  app.get('/users/admin/:email', verifyToken, verifyAdmin, async (req, res) => {
+    const email = req.params.email;
+    if (email !== req.decoded.email) {
+      return res.status(403).send({ message: "forbidden access" })
+    }
+    const query = { email: email };
+    const user = await userCollections.findOne(query);
+
+    const isAdmin = (user?.role === 'admin' ? true : false);
+    res.send({ isAdmin })
+  })
+
+  app.get('/users', verifyToken, async (req, res) => {
+    const filter = req.query.role || ''
+    const result = await userCollections.find(filter ? {role: filter} : {}).toArray();
+    res.send(result)
+  })
+
   app.post('/users', async (req, res) => {
     const user = req.body;
     const query = { email: user.email }
@@ -87,6 +119,27 @@ async function run() {
     }
     const result = await userCollections.insertOne(user);
     res.send(result);
+  })
+
+  app.patch('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const id = req.params.id;
+    const role = req.body;
+    const filter = { _id: new ObjectId(id) };
+    const update = {
+      $set: {
+        role: role.role
+      }
+    }
+    console.log(role)
+    const result = await userCollections.updateOne(filter, update);
+    res.send(result)
+  })
+
+  app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await userCollections.deleteOne(query);
+    res.send(result)
   })
 
     app.get('/surveys', async (req, res) => {
@@ -101,6 +154,20 @@ async function run() {
       res.send(result);
     })
 
+    app.put("/survey/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const status = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateStatus = {
+          $set: {
+              status: status.status,
+              report: status?.report,
+          }
+      }
+      const result = await surveyCollection.updateOne(filter, updateStatus, options);
+      res.send(result);
+  })
 
     app.get('/reviews', async (req, res) => {
       const result = await reviewCollection.find().toArray();
@@ -126,12 +193,8 @@ async function run() {
       })
     })
 
-    app.get('/payments/:email', verifyToken, async (req, res) => {
-      const query = { email: req.params.email };
-      if (req.params.email !== req.decoded.email) {
-        return res.status(403).send({ message: 'forbidden access' })
-      }
-      const result = await paymentCollections.find(query).toArray();
+    app.get('/payments', verifyToken, verifyAdmin, async (req, res) => {
+      const result = await paymentCollections.find().toArray();
       res.send(result)
     })
 

@@ -47,6 +47,8 @@ async function run() {
     const paymentCollections = client.db('surveyDB').collection('payments');
     const userCollections = client.db('surveyDB').collection('users');
     const voteCollections = client.db('surveyDB').collection('votes');
+    const reportCollections = client.db('surveyDB').collection('reports');
+    const commentCollections = client.db('surveyDB').collection('comments');
 
 
     const verifyToken = (req, res, next) => {
@@ -166,6 +168,21 @@ async function run() {
       res.send(result)
     })
 
+    app.patch('/surveys/:id', async (req, res) => {
+      const id = req.params.id;
+      const survey = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const update = {
+        $set: {
+          title: survey.title,
+          category: survey.category,
+          description: survey.description,
+        }
+      }
+      const result = await surveyCollection.updateOne(filter, update);
+      res.send(result)
+    })
+
     app.put("/survey/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const status = req.body;
@@ -204,6 +221,29 @@ async function run() {
       const result = await voteCollections.insertOne(user);
 
       res.send(result);
+    })
+
+
+    app.get('/reports', verifyToken, async (req, res) => {
+      const result = await reportCollections.find().toArray();
+      res.send(result)
+    })
+
+    app.post('/reports', verifyToken, async (req, res) => {
+      const report = req.body;
+      const result = await reportCollections.insertOne(report);
+      res.send(result)
+    })
+
+    app.get('/comments', verifyToken, async (req, res) => {
+      const result = await commentCollections.find().toArray();
+      res.send(result)
+    })
+
+    app.post('/comments', verifyToken, async (req, res) => {
+      const report = req.body;
+      const result = await commentCollections.insertOne(report);
+      res.send(result)
     })
 
     app.get('/reviews', async (req, res) => {

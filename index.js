@@ -144,7 +144,12 @@ async function run() {
     })
 
     app.get('/surveys', async (req, res) => {
-      const result = await surveyCollection.find().toArray();
+      const email = req.query.email;
+      let query = {};
+      if (email) {
+        query = { email: email }
+      }
+      const result = await surveyCollection.find(query).toArray();
       res.send(result);
     })
 
@@ -155,6 +160,12 @@ async function run() {
       res.send(result);
     })
 
+    app.post('/surveys', verifyToken, async (req, res) => {
+      const survey = req.body;
+      const result = await surveyCollection.insertOne(survey);
+      res.send(result)
+    })
+
     app.put("/survey/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const status = req.body;
@@ -163,11 +174,18 @@ async function run() {
       const updateStatus = {
         $set: {
           status: status.status,
-          report: status?.report,
+          feedback: status?.feedback,
         }
       }
       const result = await surveyCollection.updateOne(filter, updateStatus, options);
       res.send(result);
+    })
+
+    app.delete('/surveys/:id', verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await surveyCollection.deleteOne(query);
+      res.send(result)
     })
 
     app.get('/votes', async (req, res) => {
@@ -180,11 +198,11 @@ async function run() {
       const id = req.body.surveyId;
       const query = { surveyId: id }
       const existing = await voteCollections.findOne(query);
-      console.log(existing, query)
       if (existing) {
         return res.send({ message: 'your vote already taken', insertedId: null });
       }
       const result = await voteCollections.insertOne(user);
+
       res.send(result);
     })
 

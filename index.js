@@ -177,6 +177,10 @@ async function run() {
           title: survey.title,
           category: survey.category,
           description: survey.description,
+          options: {
+            yes: survey.options.yes,
+            no: survey.options.no,
+          }
         }
       }
       const result = await surveyCollection.updateOne(filter, update);
@@ -213,7 +217,7 @@ async function run() {
     app.post('/votes', async (req, res) => {
       const user = req.body;
       const id = req.body.surveyId;
-      const query = { surveyId: id }
+      const query = { surveyId: id, email: user?.email }
       const existing = await voteCollections.findOne(query);
       if (existing) {
         return res.send({ message: 'your vote already taken', insertedId: null });
